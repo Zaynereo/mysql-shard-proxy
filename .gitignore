@@ -1,0 +1,10 @@
+/mysql-shard-proxy
+/bin/
+*.exe
+*.out
+coverage.out
+.env
+.idea/
+.vscode/
+*.test
+dist/

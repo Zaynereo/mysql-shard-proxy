@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-shard-proxy
+  namespace: mysql-shard-proxy
+  labels:
+    app.kubernetes.io/name: mysql-shard-proxy
+spec:
+  selector:
+    app.kubernetes.io/name: mysql-shard-proxy
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
