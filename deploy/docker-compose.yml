@@ -1,0 +1,132 @@
+# Local two-shard MySQL topology for mysql-shard-proxy.
+#
+# The passwords below are published local defaults for this sample stack.
+# They are not credentials for any real environment. Override them with
+# MYSQL_ROOT_PASSWORD, MYSQL_REPLICATION_PASSWORD, MYSQL_APP_PASSWORD,
+# and PROXY_APP_PASSWORD.
+
+name: mysql-shard-proxy
+
+x-mysql-common: &mysql-common
+  image: mysql:8.0
+  environment: &mysql-env
+    MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-localdev}
+    MYSQL_REPLICATION_PASSWORD: ${MYSQL_REPLICATION_PASSWORD:-localdev}
+    MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:-localdev}
+
+services:
+  shard0-primary:
+    <<: *mysql-common
+    command:
+      - --server-id=10
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - ./mysql/init-primary.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
+    ports:
+      - "13306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  shard0-replica:
+    <<: *mysql-common
+    environment:
+      <<: *mysql-env
+      SOURCE_HOST: shard0-primary
+    entrypoint: ["bash", "/usr/local/bin/replica-entrypoint.sh"]
+    command:
+      - --server-id=11
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --relay-log=relay-bin
+      - --read-only=ON
+      - --replicate-do-db=app
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - ./mysql/replica-entrypoint.sh:/usr/local/bin/replica-entrypoint.sh:ro
+      - ./mysql/replica-health.sh:/usr/local/bin/replica-health.sh:ro
+    ports:
+      - "13307:3306"
+    depends_on:
+      shard0-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/bin/replica-health.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  shard1-primary:
+    <<: *mysql-common
+    command:
+      - --server-id=20
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - ./mysql/init-primary.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
+    ports:
+      - "13308:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  shard1-replica:
+    <<: *mysql-common
+    environment:
+      <<: *mysql-env
+      SOURCE_HOST: shard1-primary
+    entrypoint: ["bash", "/usr/local/bin/replica-entrypoint.sh"]
+    command:
+      - --server-id=21
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --relay-log=relay-bin
+      - --read-only=ON
+      - --replicate-do-db=app
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - ./mysql/replica-entrypoint.sh:/usr/local/bin/replica-entrypoint.sh:ro
+      - ./mysql/replica-health.sh:/usr/local/bin/replica-health.sh:ro
+    ports:
+      - "13309:3306"
+    depends_on:
+      shard1-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/bin/replica-health.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  proxy:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      PROXY_APP_PASSWORD: ${PROXY_APP_PASSWORD:-localdev}
+      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:-localdev}
+    volumes:
+      - ./config.yaml:/etc/mysql-shard-proxy/config.yaml:ro
+    ports:
+      - "3306:3306"
+      - "9090:9090"
+    depends_on:
+      shard0-replica:
+        condition: service_healthy
+      shard1-replica:
+        condition: service_healthy

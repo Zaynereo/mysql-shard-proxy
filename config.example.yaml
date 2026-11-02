@@ -1,0 +1,66 @@
+# Example configuration. Passwords come from the environment.
+# PROXY_APP_PASSWORD is the password clients use with the proxy.
+# MYSQL_APP_PASSWORD is the password the proxy uses on each backend.
+listen: "0.0.0.0:3306"
+metrics_listen: "0.0.0.0:9090"
+log_level: info
+shutdown_timeout: 20s
+
+shard_key: user_id
+sharded_tables:
+  - users
+  - orders
+
+read_your_writes_window: 5s
+fallback_to_primary: true
+allow_multi_shard_read: true
+allow_scatter_read: false
+
+users:
+  - name: app
+    password_env: PROXY_APP_PASSWORD
+
+pool:
+  max_open: 32
+  max_idle: 8
+  connect_timeout: 3s
+  acquire_timeout: 2s
+  conn_max_lifetime: 30m
+  idle_timeout: 5m
+  read_timeout: 30s
+  write_timeout: 30s
+
+health:
+  interval: 2s
+  timeout: 1s
+  lag_threshold: 3s
+  failure_threshold: 2
+  success_threshold: 1
+
+shards:
+  - name: shard0
+    primary:
+      name: shard0-primary
+      addr: shard0-primary:3306
+      user: app
+      password_env: MYSQL_APP_PASSWORD
+      database: app
+    replicas:
+      - name: shard0-replica
+        addr: shard0-replica:3306
+        user: app
+        password_env: MYSQL_APP_PASSWORD
+        database: app
+  - name: shard1
+    primary:
+      name: shard1-primary
+      addr: shard1-primary:3306
+      user: app
+      password_env: MYSQL_APP_PASSWORD
+      database: app
+    replicas:
+      - name: shard1-replica
+        addr: shard1-replica:3306
+        user: app
+        password_env: MYSQL_APP_PASSWORD
+        database: app

@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mysql-shard-proxy
+  namespace: mysql-shard-proxy
+  labels:
+    app.kubernetes.io/name: mysql-shard-proxy
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mysql-shard-proxy
